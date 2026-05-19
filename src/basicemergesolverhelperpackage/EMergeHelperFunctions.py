@@ -4,9 +4,15 @@ from typing import Callable
 import gmsh
 import os
 
+import numpy as np
+from emerge.plot import smith, plot_sp
+
 class EMergeHelperFunctions:
     simulationObj = None
     materialList = {}
+    portList = {}
+    _generatedPortIndex = 1
+    _temporaryInternalPortIndex = 1 #this shouldn't exists, but it's helper counter if port somehow will be from more objects
 
     def __init__(self, simulationObj):
         self.simulationObj = simulationObj
@@ -127,3 +133,81 @@ class EMergeHelperFunctions:
         self.materialList[name] = materialObj
         self.materialList[name].color = color
         self.materialList[name].opacity = opacity
+
+    def setMaterialColor(self, name, color="#000000", opacity: float = -89.0):
+        self.materialList[name].color = color
+        self.materialList[name].opacity = opacity
+
+    def addPort(self, name="", portStart=[0.0, 0.0, 0.0], width=0.0, height=0.0, R=50.0, direction=em.ZAX, excitationAmplitude:float=0.0, geometryObject:em._emerge.geometry.GeoObject=None, portNumber:int=-1):
+        self.portList[name] = {}
+        self.portList[name]['portStart'] = portStart
+        self.portList[name]['width'] = width
+        self.portList[name]['height'] = height
+        self.portList[name]['R'] = R
+        self.portList[name]['direction'] = direction
+        self.portList[name]['excitationAmplitude'] = excitationAmplitude
+        self.portList[name]['object'] = geometryObject
+        self.portList[name]['portNumber'] = self._generatedPortIndex if portNumber == -1 else portNumber
+
+        if portNumber == -1:
+            self._generatedPortIndex += 1
+
+    def getPort(self, name):
+        return self.portList[name]
+
+    def getPortByNumber(self, portNumber):
+        resultPortObj = None
+        for portObj in self.portList:
+            if portNumber == portObj['portNumber']:
+                resultPortObj = portObj
+        return resultPortObj
+
+    def setPortAsLumpedPort(self, name, searchObjectName=""):
+        portObj = self.getPort(name)
+
+        #
+        # Port object can be splitted since there was fragmentation operation in EMerge
+        #
+        portGeometryObjectList = self.getAllObjectByName(name if searchObjectName == "" else searchObjectName)
+        for geometryObj in portGeometryObjectList:
+            self.simulationObj.mw.bc.LumpedPort(
+                geometryObj,
+                port_number=portObj['portNumber'],
+                width=portObj['width'],
+                height=portObj['height'],
+                direction=portObj['direction'],
+                Z0=portObj['R'],
+                power=portObj['excitationAmplitude']
+            )
+            self._temporaryInternalPortIndex += 1
+
+    def plotSParamUsingPortName(self, sourcePortName, targetPortName, dblim=[-40, 0], plotSmithChart=False):
+        sourcePortNumber = self.getPortNumber(sourcePortName)
+        targetPortNumber = self.getPortNumber(targetPortName)
+
+        self.plotSParamUsingPortNumbers(sourcePortNumber, targetPortNumber, dblim, plotSmithChart)
+
+    def plotSParamUsingPortNumbers(self, sourcePortNumber, targetPortNumber, dblim=[-40, 0], plotSmithChart=False):
+        simulationResult = self.simulationObj.data.mw
+
+        freqs = simulationResult.scalar.grid.freq
+        fmin = freqs.min()
+        fmax = freqs.max()
+        freq_dense = np.linspace(fmin, fmax, 1001)
+        S_data = simulationResult.scalar.grid.model_S(sourcePortNumber, targetPortNumber, freq_dense)  # reflection coefficient
+        plotLabel = f'S{sourcePortNumber}{targetPortNumber}'
+        plot_sp(freq_dense, S_data, labels=plotLabel, dblim=dblim)  # plot return loss in dB
+
+        if plotSmithChart:
+            smith(S_data, f=freq_dense, labels=plotLabel)  # smith chart
+
+    def addObjectToView(self, nameOrList: str | list, opacity:float=0.1):
+        objectList = []
+        if type(nameOrList) == str:
+            objectList = self.getAllObjectByName(nameOrList)
+        if type(nameOrList) == list:
+            for oneName in nameOrList:
+                objectList.extend(self.getAllObjectByName(oneName))
+
+        for geoObject in objectList:
+            self.simulationObj.display.add_object(geoObject, opacity=opacity)
