@@ -162,6 +162,11 @@ class EMergeHelperFunctions:
                 resultPortObj = portObj
         return resultPortObj
 
+    def getPortNumber(self, name):
+        for portObj in self.portList:
+            if portObj['portNumber'] == name:
+                return portObj['portNumber']
+
     def setPortAsLumpedPort(self, name, searchObjectName=""):
         portObj = self.getPort(name)
 
