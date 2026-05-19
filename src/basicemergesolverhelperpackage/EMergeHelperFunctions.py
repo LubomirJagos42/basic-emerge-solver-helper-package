@@ -135,6 +135,11 @@ class EMergeHelperFunctions:
         self.materialList[name].opacity = opacity
 
     def setMaterialColor(self, name, color="#000000", opacity: float = -89.0):
+        """Setter for color and opacity
+        :param name: Name of material
+        :param color: Color string in html for like #FF0000 (red)
+        :param opacity: Makes material transparent (0.0) or non-transparent (1.0)
+        """
         self.materialList[name].color = color
         self.materialList[name].opacity = opacity
 
@@ -175,15 +180,26 @@ class EMergeHelperFunctions:
         #
         portGeometryObjectList = self.getAllObjectByName(name if searchObjectName == "" else searchObjectName)
         for geometryObj in portGeometryObjectList:
-            self.simulationObj.mw.bc.LumpedPort(
-                geometryObj,
-                port_number=portObj['portNumber'],
-                width=portObj['width'],
-                height=portObj['height'],
-                direction=portObj['direction'],
-                Z0=portObj['R'],
-                power=portObj['excitationAmplitude']
-            )
+            if portObj['excitationAmplitude'] > 0.0:
+                self.simulationObj.mw.bc.LumpedPort(
+                    geometryObj,
+                    port_number=portObj['portNumber'],
+                    width=portObj['width'],
+                    height=portObj['height'],
+                    direction=portObj['direction'],
+                    Z0=portObj['R'],
+                    power=portObj['excitationAmplitude']
+                )
+            else:
+                self.simulationObj.mw.bc.LumpedPort(
+                    geometryObj,
+                    port_number=portObj['portNumber'],
+                    width=portObj['width'],
+                    height=portObj['height'],
+                    direction=portObj['direction'],
+                    Z0=portObj['R']
+                )
+
             self._temporaryInternalPortIndex += 1
 
     def plotSParamUsingPortName(self, sourcePortName, targetPortName, dblim=[-40, 0], plotSmithChart=False):
@@ -192,16 +208,27 @@ class EMergeHelperFunctions:
 
         self.plotSParamUsingPortNumbers(sourcePortNumber, targetPortNumber, dblim, plotSmithChart)
 
-    def plotSParamUsingPortNumbers(self, sourcePortNumber, targetPortNumber, dblim=[-40, 0], plotSmithChart=False):
+    def plotSParamUsingPortNumbers(self, sourcePortNumber, targetPortNumber, dblim=[-40, 0], plotSmithChart=False, plotImproved=False, plotS11=False):
         simulationResult = self.simulationObj.data.mw
 
         freqs = simulationResult.scalar.grid.freq
         fmin = freqs.min()
         fmax = freqs.max()
-        freq_dense = np.linspace(fmin, fmax, 1001)
-        S_data = simulationResult.scalar.grid.model_S(sourcePortNumber, targetPortNumber, freq_dense)  # reflection coefficient
-        plotLabel = f'S{sourcePortNumber}{targetPortNumber}'
-        plot_sp(freq_dense, S_data, labels=plotLabel, dblim=dblim)  # plot return loss in dB
+
+        if plotImproved:
+            freq_dense = np.linspace(fmin, fmax, 1001)
+            S_data = simulationResult.scalar.grid.model_S(sourcePortNumber, targetPortNumber, freq_dense)  # reflection coefficient
+            plotLabel = f'S{sourcePortNumber}{targetPortNumber}'
+            plot_sp(freq_dense, S_data, labels=plotLabel, dblim=dblim)  # plot return loss in dB
+        else:
+            S21_data = simulationResult.scalar.grid.S(sourcePortNumber, targetPortNumber)  # reflection coefficient
+            S11_data = simulationResult.scalar.grid.S(sourcePortNumber, sourcePortNumber)  # reflection coefficient
+            plotLabel_S11 = f'S{sourcePortNumber}{sourcePortNumber}'
+            plotLabel_S21 = f'S{targetPortNumber}{sourcePortNumber}'
+            if plotS11:
+                plot_sp(freqs, [S11_data, S21_data], labels=[plotLabel_S11, plotLabel_S21], dblim=dblim)  # plot return loss in dB
+            else:
+                plot_sp(freqs, [S21_data], labels=[plotLabel_S21], dblim=dblim)  # plot return loss in dB
 
         if plotSmithChart:
             smith(S_data, f=freq_dense, labels=plotLabel)  # smith chart
