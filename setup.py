@@ -5,14 +5,14 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="basicemergesolverhelperpackage",
-    version="0.0.2",
+    version="0.0.3",
     author="Lubomir Jagos",
     author_email="lubomir.jagos.42@gmail.com",
     description="Mesh creation and plot utilities for EMerge solver or other FEM solver.",
     long_description="Helper methods to make easier to do simulation when working with imported STEP files from FreeCAD",
     long_description_content_type="text/markdown",
     url="https://github.com/LubomirJagos42/basic-emerge-solver-helper-package",
-    packages=find_packages(where=["src"]),
+    packages=find_packages(where="src"),
     package_dir={"": "src"},
     classifiers=[
         "Programming Language :: Python :: 3",
