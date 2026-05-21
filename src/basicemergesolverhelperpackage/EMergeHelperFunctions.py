@@ -208,27 +208,30 @@ class EMergeHelperFunctions:
 
         self.plotSParamUsingPortNumbers(sourcePortNumber, targetPortNumber, dblim, plotSmithChart)
 
-    def plotSParamUsingPortNumbers(self, sourcePortNumber, targetPortNumber, dblim=[-40, 0], plotSmithChart=False, plotImproved=False, plotS11=False):
+    def plotSParamUsingPortNumbers(self, sourcePortNumber, targetPortNumber, dblim=[-40, 0], xunit="GHz", plotSmithChart=False, plotInterpolatedPoints:int=-1, plotS11=False):
         simulationResult = self.simulationObj.data.mw
 
         freqs = simulationResult.scalar.grid.freq
         fmin = freqs.min()
         fmax = freqs.max()
 
-        if plotImproved:
-            freq_dense = np.linspace(fmin, fmax, 1001)
-            S_data = simulationResult.scalar.grid.model_S(sourcePortNumber, targetPortNumber, freq_dense)  # reflection coefficient
+        if plotInterpolatedPoints > 0:
+            #
+            # Add points into frequency axis and interpolate computed S param over these points it makes graph line smooth but it can provide wrong result!!!
+            #
+            freq_dense = np.linspace(fmin, fmax, plotInterpolatedPoints)
+            S_data = simulationResult.scalar.grid.model_S(sourcePortNumber, targetPortNumber, freq_dense)
             plotLabel = f'S{sourcePortNumber}{targetPortNumber}'
-            plot_sp(freq_dense, S_data, labels=plotLabel, dblim=dblim)  # plot return loss in dB
+            plot_sp(freq_dense, S_data, labels=plotLabel, dblim=dblim)
         else:
-            S21_data = simulationResult.scalar.grid.S(sourcePortNumber, targetPortNumber)  # reflection coefficient
-            S11_data = simulationResult.scalar.grid.S(sourcePortNumber, sourcePortNumber)  # reflection coefficient
+            S21_data = simulationResult.scalar.grid.S(sourcePortNumber, targetPortNumber)
+            S11_data = simulationResult.scalar.grid.S(sourcePortNumber, sourcePortNumber)
             plotLabel_S11 = f'S{sourcePortNumber}{sourcePortNumber}'
             plotLabel_S21 = f'S{targetPortNumber}{sourcePortNumber}'
             if plotS11:
-                plot_sp(freqs, [S11_data, S21_data], labels=[plotLabel_S11, plotLabel_S21], dblim=dblim)  # plot return loss in dB
+                plot_sp(freqs, [S11_data, S21_data], labels=[plotLabel_S11, plotLabel_S21], dblim=dblim, xunit=xunit)
             else:
-                plot_sp(freqs, [S21_data], labels=[plotLabel_S21], dblim=dblim)  # plot return loss in dB
+                plot_sp(freqs, [S21_data], labels=[plotLabel_S21], dblim=dblim, xunit=xunit)
 
         if plotSmithChart:
             smith(S_data, f=freq_dense, labels=plotLabel)  # smith chart
