@@ -1,6 +1,7 @@
 import emerge as em
 import emerge._emerge.geometry as emergeGeo
-from typing import Callable
+import emerge._emerge.physics.microwave.microwave_bc as emergeMicrowaveBC
+from typing import Callable, Literal
 import gmsh
 import os
 
@@ -129,12 +130,29 @@ class EMergeHelperFunctions:
             gmsh.model.addPhysicalGroup(2, objectTag2DList, name=groupName)
             gmsh.model.addPhysicalGroup(3, objectTag3DList, name=groupName)
 
-    def addMaterial(self, name, materialObj, color="#000000", opacity: float = -89.0):
+    def addMaterial(self, name, materialObj, color="#000000", opacity: float = 1.0):
         self.materialList[name] = materialObj
         self.materialList[name].color = color
         self.materialList[name].opacity = opacity
 
-    def setMaterialColor(self, name, color="#000000", opacity: float = -89.0):
+    def getMaterial(self, name):
+        #
+        #   Get material from internal material list
+        #
+        materialObj = self.materialList[name] if name in self.materialList.keys() else None
+
+        #
+        #   If material not found try to scan all geometries and their assigned materials if it will be found
+        #
+        if materialObj == None:
+            for geometryObj in self.simulationObj.state.manager.geometry_list[self.simulationObj.modelname].values():
+                if geometryObj.material.name == name:
+                    materialObj = geometryObj.material
+                    break
+
+        return materialObj
+
+    def setMaterialColor(self, name, color="#000000", opacity: float = 1.0):
         """Setter for color and opacity
         :param name: Name of material
         :param color: Color string in html for like #FF0000 (red)
@@ -143,7 +161,29 @@ class EMergeHelperFunctions:
         self.materialList[name].color = color
         self.materialList[name].opacity = opacity
 
-    def addPort(self, name="", portStart=[0.0, 0.0, 0.0], width=0.0, height=0.0, R=50.0, direction=em.ZAX, excitationAmplitude:float=0.0, geometryObject:em._emerge.geometry.GeoObject=None, portNumber:int=-1):
+    def addPort(
+            self,
+            name="",
+            portStart=[0.0, 0.0, 0.0],
+            width=0.0,
+            height=0.0,
+            R=50.0,
+            direction=em.ZAX,
+            excitationAmplitude:float=0.0,
+            geometryObject:em._emerge.geometry.GeoObject=None,
+            portNumber:int=-1,
+
+            modalModeType: Literal['TE','TM','TEM'] | None = None,
+            modalMixedMaterials: bool = False,
+            modalImpedanceDefinition: Literal['PV','PI','VI'] = 'PV',
+
+            rectangularWaveguideMode: tuple[int, int] = (0, 0),
+            rectangularWaveguidePermittivity: float = 1.0,
+
+            coaxPortInnerRadius: float  = 0.0,
+            coaxPortOuterRadius: float = 0.0,
+            coaxPortPermittivity: float = 1.0,
+    ):
         self.portList[name] = {}
         self.portList[name]['portStart'] = portStart
         self.portList[name]['width'] = width
@@ -154,8 +194,102 @@ class EMergeHelperFunctions:
         self.portList[name]['object'] = geometryObject
         self.portList[name]['portNumber'] = self._generatedPortIndex if portNumber == -1 else portNumber
 
+        self.portList[name]["modalModeType"] = modalModeType
+        self.portList[name]["modalMixedMaterials"] = modalMixedMaterials
+        self.portList[name]["modalImpedanceDefinition"] = modalImpedanceDefinition
+
+        self.portList[name]["rectangularWaveguideMode"] = rectangularWaveguideMode
+        self.portList[name]["rectangularWaveguidePermittivity"] = rectangularWaveguidePermittivity
+
+        self.portList[name]["coaxPortInnerRadius"] = coaxPortInnerRadius
+        self.portList[name]["coaxPortOuterRadius"] = coaxPortOuterRadius
+        self.portList[name]["coaxPortPermittivity"] = coaxPortPermittivity
+
         if portNumber == -1:
             self._generatedPortIndex += 1
+
+    def addLumpedPort(
+        self,
+        name = "",
+        portStart = [0.0, 0.0, 0.0],
+        width = 0.0,
+        height = 0.0,
+        R = 50.0,
+        direction = em.ZAX,
+        power:float = 0.0,
+        geometryObject:em._emerge.geometry.GeoObject = None,
+        portNumber:int = -1
+    ):
+        self.addPort(
+            name=name,
+            portStart=portStart,
+            width=width,
+            height=height,
+            R=R,
+            direction=direction,
+            excitationAmplitude=power,
+            geometryObject=geometryObject,
+            portNumber=portNumber
+        )
+
+    def addModalPort(
+        self,
+        name = "",
+        mode: Literal["TE", "TM", "TEM"] = "TE",
+        mixedMaterials: bool = False,
+        impedanceDefinition: Literal["PV", "PI", "VI"] = "PV",
+        power:float = 0.0,
+        geometryObject:em._emerge.geometry.GeoObject = None,
+        portNumber:int = -1
+    ):
+        self.addPort(
+            name=name,
+            modalModeType=mode,
+            modalMixedMaterials=mixedMaterials,
+            modalImpedanceDefinition=impedanceDefinition,
+            excitationAmplitude=power,
+            geometryObject=geometryObject,
+            portNumber=portNumber
+        )
+
+    def addRectangularWaveguidePort(
+        self,
+        name = "",
+        mode: tuple[int, int] = (0,0),
+        er: float = 1.0,
+        power:float = 1.0,
+        geometryObject:em._emerge.geometry.GeoObject = None,
+        portNumber:int = -1
+    ):
+        self.addPort(
+            name=name,
+            rectangularWaveguideMode = mode,
+            rectangularWaveguidePermittivity = er,
+            excitationAmplitude=power,
+            geometryObject=geometryObject,
+            portNumber=portNumber
+        )
+
+    def addCoaxPort(
+        self,
+        name = "",
+        inner_radius: float = 0.0,
+        outer_radius: float = 0.0,
+        er: float = 1.0,
+        power:float = 1.0,
+        geometryObject:em._emerge.geometry.GeoObject = None,
+        portNumber:int = -1
+    ):
+        self.addPort(
+            name=name,
+            coaxPortInnerRadius = inner_radius,
+            coaxPortOuterRadius = outer_radius,
+            coaxPortPermittivity = er,
+            excitationAmplitude=power,
+            geometryObject=geometryObject,
+            portNumber=portNumber
+        )
+
 
     def getPort(self, name):
         return self.portList[name]
@@ -172,8 +306,9 @@ class EMergeHelperFunctions:
             if portObj['portNumber'] == name:
                 return portObj['portNumber']
 
-    def setPortAsLumpedPort(self, name, searchObjectName=""):
+    def setPortAsLumpedPort(self, name, searchObjectName="") -> list[emergeMicrowaveBC.LumpedPort]:
         portObj = self.getPort(name)
+        resultBoundaryConditionList = []
 
         #
         # Port object can be splitted since there was fragmentation operation in EMerge
@@ -181,8 +316,8 @@ class EMergeHelperFunctions:
         portGeometryObjectList = self.getAllObjectByName(name if searchObjectName == "" else searchObjectName)
         for geometryObj in portGeometryObjectList:
             if portObj['excitationAmplitude'] > 0.0:
-                self.simulationObj.mw.bc.LumpedPort(
-                    geometryObj,
+                resultObj = self.simulationObj.mw.bc.LumpedPort(
+                    face=geometryObj,
                     port_number=portObj['portNumber'],
                     width=portObj['width'],
                     height=portObj['height'],
@@ -191,16 +326,81 @@ class EMergeHelperFunctions:
                     power=portObj['excitationAmplitude']
                 )
             else:
-                self.simulationObj.mw.bc.LumpedPort(
-                    geometryObj,
+                resultObj = self.simulationObj.mw.bc.LumpedPort(
+                    face=geometryObj,
                     port_number=portObj['portNumber'],
                     width=portObj['width'],
                     height=portObj['height'],
                     direction=portObj['direction'],
                     Z0=portObj['R']
                 )
+            resultBoundaryConditionList.append(resultObj)
 
             self._temporaryInternalPortIndex += 1
+
+        return resultBoundaryConditionList
+
+    def setPortAsModalPort(self, name, searchObjectName="") -> list[emergeMicrowaveBC.ModalPort]:
+        """Experimental implementation not tested on real world example!!!"""
+
+        resultBoundaryConditionList = []
+
+        portObj = self.getPort(name)
+        portGeometryObjectList = self.getAllObjectByName(name if searchObjectName == "" else searchObjectName)
+
+        for geometryObj in portGeometryObjectList:
+            resultObj = self.simulationObj.mw.bc.ModalPort(
+                face = geometryObj,
+                port_number=portObj['portNumber'],
+                power = portObj['excitationAmplitude'],
+                modetype = portObj["modalModeType"],
+                number_of_modes = 1,
+                mixed_materials = portObj["modalMixedMaterials"],
+                impedance_definition = portObj["modalImpedanceDefinition"]
+            )
+            resultBoundaryConditionList.append(resultObj)
+
+        return resultBoundaryConditionList
+
+    def setPortAsRectangularWaveguidePort(self, name, searchObjectName="") -> list[emergeMicrowaveBC.RectangularWaveguide]:
+        """Experimental implementation not tested on real world example!!!"""
+
+        resultBoundaryConditionList = []
+
+        portObj = self.getPort(name)
+        portGeometryObjectList = self.getAllObjectByName(name if searchObjectName == "" else searchObjectName)
+
+        for geometryObj in portGeometryObjectList:
+            resultObj = self.simulationObj.mw.bc.RectangularWaveguide(
+                face = geometryObj,
+                port_number=portObj['portNumber'],
+                power = portObj['excitationAmplitude'],
+                mode = portObj["rectangularWaveguideMode"],
+                er = portObj["rectangularWaveguidePermittivity"]
+            )
+        resultBoundaryConditionList.append(resultObj)
+
+        return resultBoundaryConditionList
+
+    def setPortAsCoaxPort(self, name, searchObjectName="") -> list[emergeMicrowaveBC.CoaxPort]:
+        """Experimental implementation not tested on real world example!!!"""
+
+        resultBoundaryConditionList = []
+
+        portObj = self.getPort(name)
+        portGeometryObjectList = self.getAllObjectByName(name if searchObjectName == "" else searchObjectName)
+
+        for geometryObj in portGeometryObjectList:
+            resultObj = self.simulationObj.mw.bc.CoaxPort(
+                face = geometryObj,
+                port_number=portObj['portNumber'],
+                power = portObj['excitationAmplitude'],
+                rad_in_out = (portObj["coaxPortInnerRadius"], portObj["coaxPortInnerRadius"]),
+                er = portObj["coaxPortPermittivity"]
+            )
+            resultBoundaryConditionList.append(resultObj)
+
+        return resultBoundaryConditionList
 
     def plotSParamUsingPortName(self, sourcePortName, targetPortName, dblim=[-40, 0], plotSmithChart=False):
         sourcePortNumber = self.getPortNumber(sourcePortName)
@@ -246,3 +446,50 @@ class EMergeHelperFunctions:
 
         for geoObject in objectList:
             self.simulationObj.display.add_object(geoObject, opacity=opacity)
+
+    def create_emerge_plane_data(self, port_start, port_stop, normal):
+        """
+        Computes origin, u, and v vectors for an EMerge Plane using
+        start/stop diagonal points and a surface normal vector.
+
+        Inputs can be FreeCAD vectors or standard (x, y, z) tuples.
+        """
+        # 1. Convert everything to numpy arrays for clean math
+        p1 = np.array([port_start[0], port_start[1], port_start[2]])
+        p4 = np.array([port_stop[0], port_stop[1], port_stop[2]])
+        n = np.array([normal[0], normal[1], normal[2]])
+
+        # Normalize the normal vector to ensure it is a unit vector
+        n = n / np.linalg.norm(n)
+
+        # 2. Calculate the full diagonal vector across the port
+        diag = p4 - p1
+
+        # 3. Project the diagonal vector to eliminate any component pointing
+        # along the normal (ensures the math stays strictly flat on the 2D plane)
+        diag_planar = diag - np.dot(diag, n) * n
+
+        # 4. Determine the primary coordinate alignment for the 'u' axis.
+        # We choose an axis that isn't parallel to our normal vector.
+        if abs(n[0]) < 0.9:
+            ref_dir = np.array([1.0, 0.0, 0.0])  # Fallback to X axis alignment
+        else:
+            ref_dir = np.array([0.0, 1.0, 0.0])  # Fallback to Y axis alignment
+
+        # Generate an orthogonal direction for 'u' using a cross product
+        u_direction = np.cross(n, ref_dir)
+        u_axis = u_direction / np.linalg.norm(u_direction)
+
+        # Generate the perpendicular 'v' direction
+        v_axis = np.cross(n, u_axis)
+
+        # 5. Project the planar diagonal onto our newly established u and v axes
+        u_magnitude = np.dot(diag_planar, u_axis)
+        v_magnitude = np.dot(diag_planar, v_axis)
+
+        # 6. Reconstruct the final u and v vectors as clean 3D tuples
+        u = tuple(u_axis * u_magnitude)
+        v = tuple(v_axis * v_magnitude)
+        origin = tuple(p1)
+
+        return origin, u, v
