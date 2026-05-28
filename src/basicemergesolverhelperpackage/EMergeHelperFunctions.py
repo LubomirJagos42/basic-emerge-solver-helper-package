@@ -1,7 +1,6 @@
 import emerge as em
 import emerge._emerge.geometry as emergeGeo
 import emerge._emerge.physics.microwave.microwave_bc as emergeMicrowaveBC
-from emerge._emerge.physics.microwave.microwave_data import MWData #this is for simulationResult object literal specification for python
 
 from typing import Callable, Literal
 import gmsh
@@ -496,7 +495,9 @@ class EMergeHelperFunctions:
 
         return origin, u, v
 
-    def exportCSV_SParam(self, filename: str, simulationResult: MWData, sourcePortNumber: int, targetPortNumber: int, useMagnitude=True, delimiter=','):
+    def exportCSV_SParam(self, filename: str, sourcePortNumber: int, targetPortNumber: int, useMagnitude=True, delimiter=','):
+        simulationResult = self.simulationObj.data.mw
+
         # get frequency axis from result
         freq = simulationResult.scalar.grid.freq
 
