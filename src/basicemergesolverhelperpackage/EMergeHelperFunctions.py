@@ -496,7 +496,7 @@ class EMergeHelperFunctions:
 
         return origin, u, v
 
-    def exportCSV_SParam(self, filename: str, simulationResult: MWData, sourcePortNumber: int, targetPortNumber: int, useMagnitude=True):
+    def exportCSV_SParam(self, filename: str, simulationResult: MWData, sourcePortNumber: int, targetPortNumber: int, useMagnitude=True, delimiter=','):
         # get frequency axis from result
         freq = simulationResult.scalar.grid.freq
 
@@ -507,7 +507,7 @@ class EMergeHelperFunctions:
             sParam = simulationResult.scalar.grid.S(sourcePortNumber, targetPortNumber)
 
         outFile = open(filename, "w")
-        outFile.write("{},{}\n".format("freq", f"s{targetPortNumber}{sourcePortNumber}"))
+        outFile.write(f"freq{delimiter}s{targetPortNumber}{sourcePortNumber}\n")
         for x in zip(freq, sParam):
-            outFile.write("{},{}\n".format(x[0], x[1]))
+            outFile.write(f"{x[0]}{delimiter}{x[1]}\n")
         outFile.close()
