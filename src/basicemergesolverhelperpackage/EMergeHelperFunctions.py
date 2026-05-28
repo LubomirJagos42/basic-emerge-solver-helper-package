@@ -1,6 +1,8 @@
 import emerge as em
 import emerge._emerge.geometry as emergeGeo
 import emerge._emerge.physics.microwave.microwave_bc as emergeMicrowaveBC
+from emerge._emerge.physics.microwave.microwave_data import MWData #this is for simulationResult object literal specification for python
+
 from typing import Callable, Literal
 import gmsh
 import os
@@ -493,3 +495,19 @@ class EMergeHelperFunctions:
         origin = tuple(p1)
 
         return origin, u, v
+
+    def exportCSV_SParam(self, filename: str, simulationResult: MWData, sourcePortNumber: int, targetPortNumber: int, useMagnitude=True):
+        # get frequency axis from result
+        freq = simulationResult.scalar.grid.freq
+
+        # get S param, if magnitude compute it, normaly it's complex number
+        if useMagnitude:
+            sParam = 20 * np.log10(abs(simulationResult.scalar.grid.S(sourcePortNumber, targetPortNumber)))
+        else:
+            sParam = simulationResult.scalar.grid.S(sourcePortNumber, targetPortNumber)
+
+        outFile = open(filename, "w")
+        outFile.write("{},{}\n".format("freq", f"s{targetPortNumber}{sourcePortNumber}"))
+        for x in zip(freq, sParam):
+            outFile.write("{},{}\n".format(x[0], x[1]))
+        outFile.close()
