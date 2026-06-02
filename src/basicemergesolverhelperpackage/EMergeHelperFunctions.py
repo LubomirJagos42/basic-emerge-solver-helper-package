@@ -95,7 +95,32 @@ class EMergeHelperFunctions:
         for obj in objectList:
             self.simulationObj.mw.bc.LumpedElement(face=obj, impedance_function=impedance_function, width=width, height=height)
 
-    def setBoundaryConditionToObject(self, name: str, type: str):
+    def setSurfaceImpedanceBoundaryConditionToObject(self, objectName: str,
+        material: em.Material | None = None,
+        surface_conductance: float | None = None,
+        surface_roughness: float = 0,
+        thickness: float | None = None,
+        sr_model: Literal['Hammerstad-Jensen'] = 'Hammerstad-Jensen',
+        impedance_function: Callable | None = None,
+    ):
+        """Wrapper method specific for surface impedance, it call setBoundaryConditionToObject, this is to have method with proper named parameters."""
+
+        self.setBoundaryConditionToObject(name=objectName, type="SurfaceImpedance", additionalParameters={
+            "material": material,
+            "surface_conductance": surface_conductance,
+            "surface_roughness": surface_roughness,
+            "thickness": thickness,
+            "sr_model": sr_model,
+            "impedance_function": impedance_function,
+        })
+
+    def setBoundaryConditionToObject(self, name: str, type: str, additionalParameters: dict = {}):
+        """Assign boundary condition to object, if some extra params are required for boundary condition to be created they should be passed in additionalParameters
+        dictionary and are unpacked, now used for SurfaceImpedance
+
+        For PEC, PMC there are no params needed for SurfaceImpedance there are needed conductance, roughness, thickness and surface roughness model can be specified.
+        """
+
         objectList = self.getObjectSurface(name)
         for obj in objectList:
             if type.lower() == "absorbing":
@@ -104,6 +129,8 @@ class EMergeHelperFunctions:
                 self.simulationObj.mw.bc.PEC(obj)
             elif type == "PMC":
                 self.simulationObj.mw.bc.PMC(obj)
+            elif type == "SurfaceImpedance":
+                self.simulationObj.mw.bc.SurfaceImpedance(obj, **additionalParameters)
             else:
                 raise Exception(f"ERROR: Unknown type of boundary condition: {type}")
 
