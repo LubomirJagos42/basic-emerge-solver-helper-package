@@ -95,8 +95,8 @@ class EMergeHelperFunctions:
         for obj in objectList:
             self.simulationObj.mw.bc.LumpedElement(face=obj, impedance_function=impedance_function, width=width, height=height)
 
-    def setSurfaceImpedanceBoundaryConditionToObject(self, objectName: str,
-        material: em.Material | None = None,
+    def setSurfaceImpedanceBoundaryConditionToObject(self, name: str,
+        material: em.Material | str | None = None,
         surface_conductance: float | None = None,
         surface_roughness: float = 0,
         thickness: float | None = None,
@@ -105,8 +105,8 @@ class EMergeHelperFunctions:
     ):
         """Wrapper method specific for surface impedance, it call setBoundaryConditionToObject, this is to have method with proper named parameters."""
 
-        self.setBoundaryConditionToObject(name=objectName, type="SurfaceImpedance", additionalParameters={
-            "material": material,
+        self.setBoundaryConditionToObject(name=name, type="surfaceImpedance", additionalParameters={
+            "material": self.getMaterial(material) if type(material) == str else material,
             "surface_conductance": surface_conductance,
             "surface_roughness": surface_roughness,
             "thickness": thickness,
@@ -129,7 +129,7 @@ class EMergeHelperFunctions:
                 self.simulationObj.mw.bc.PEC(obj)
             elif type == "PMC":
                 self.simulationObj.mw.bc.PMC(obj)
-            elif type == "SurfaceImpedance":
+            elif type.lower() == "surfaceimpedance":
                 self.simulationObj.mw.bc.SurfaceImpedance(obj, **additionalParameters)
             else:
                 raise Exception(f"ERROR: Unknown type of boundary condition: {type}")
