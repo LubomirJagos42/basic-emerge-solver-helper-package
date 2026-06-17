@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="basicemergesolverhelperpackage",
-    version="0.0.8",
+    version="0.0.9",
     author="Lubomir Jagos",
     author_email="lubomir.jagos.42@gmail.com",
     description="Mesh creation and plot utilities for EMerge solver or other FEM solver.",

@@ -1,6 +1,15 @@
 import emerge as em
 import emerge._emerge.geometry as emergeGeo
-import emerge._emerge.physics.microwave.microwave_bc as emergeMicrowaveBC
+
+#
+#   Import boundary condition objects, they are used as datatype to describe some methods return types, it's more about to
+#   have better type hints in intelligent python editors.
+#
+try:
+    import emerge._emerge.physics.microwave.bcs.port_bcs as emergeMicrowaveBC   #it's enough to just try import and in error case try older import
+except:
+    # this works for emerge version up to 2.6.x
+    import emerge._emerge.physics.microwave.microwave_bc as emergeMicrowaveBC
 
 from typing import Callable, Literal
 import gmsh
