@@ -123,6 +123,25 @@ class EMergeHelperFunctions:
             "impedance_function": impedance_function,
         })
 
+    def setThinConductorBoundaryConditionToObject(self, name: str,
+        material: em.Material | str | None = None,
+        surface_conductance: float | None = None,
+        surface_roughness: float = 0,
+        thickness: float | None = None,
+        sr_model: Literal['Hammerstad-Jensen'] = 'Hammerstad-Jensen',
+        impedance_function: Callable | None = None,
+    ):
+        """Wrapper method specific for thin conductor, it call setBoundaryConditionToObject, this is to have method with proper named parameters."""
+
+        self.setBoundaryConditionToObject(name=name, type="thinConductor", additionalParameters={
+            "material": self.getMaterial(material) if type(material) == str else material,
+            "surface_conductance": surface_conductance,
+            "surface_roughness": surface_roughness,
+            "thickness": thickness,
+            "sr_model": sr_model,
+            "impedance_function": impedance_function,
+        })
+
     def setBoundaryConditionToObject(self, name: str, type: str, additionalParameters: dict = {}):
         """Assign boundary condition to object, if some extra params are required for boundary condition to be created they should be passed in additionalParameters
         dictionary and are unpacked, now used for SurfaceImpedance
@@ -140,6 +159,8 @@ class EMergeHelperFunctions:
                 self.simulationObj.mw.bc.PMC(obj)
             elif type.lower() == "surfaceimpedance":
                 self.simulationObj.mw.bc.SurfaceImpedance(obj, **additionalParameters)
+            elif type.lower() == "thinconductor":
+                self.simulationObj.mw.bc.ThinConductor(obj, **additionalParameters)
             else:
                 raise Exception(f"ERROR: Unknown type of boundary condition: {type}")
 
