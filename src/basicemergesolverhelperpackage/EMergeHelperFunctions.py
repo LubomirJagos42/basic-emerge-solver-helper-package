@@ -11,6 +11,8 @@ except:
     # this works for emerge version up to 2.6.x
     import emerge._emerge.physics.microwave.microwave_bc as emergeMicrowaveBC
 
+from emerge._emerge.cs import CoordinateSystem
+
 from typing import Callable, Literal
 import gmsh
 import os
@@ -142,11 +144,15 @@ class EMergeHelperFunctions:
             "impedance_function": impedance_function,
         })
 
-    def setBoundaryConditionToObject(self, name: str, type: str, additionalParameters: dict = {}):
+    def setBoundaryConditionToObject(self, name: str, type: Literal['absorbing','PEC','PMC','surfaceimpedance','thinconductor'], additionalParameters: dict = {}):
         """Assign boundary condition to object, if some extra params are required for boundary condition to be created they should be passed in additionalParameters
         dictionary and are unpacked, now used for SurfaceImpedance
 
         For PEC, PMC there are no params needed for SurfaceImpedance there are needed conductance, roughness, thickness and surface roughness model can be specified.
+
+        :param name: Name of object to be searched inside simulationObj.state.manager.geometry_list[] using 'if geometryObj.name == name or geometryObj.name.startswith(name+"_"):'
+        :param type: Type of object to be searched
+        :param additionalParameters: Dictionary of additional parameters to be passed into 'self.simulationObj.mw.bc.SurfaceImpedance(obj, **additionalParameters)' and 'self.simulationObj.mw.bc.ThinConductor(obj, **additionalParameters)'
         """
 
         objectList = self.getObjectSurface(name)
@@ -165,6 +171,15 @@ class EMergeHelperFunctions:
                 raise Exception(f"ERROR: Unknown type of boundary condition: {type}")
 
     def createGmshNamedGroup(self, geometryObjName: str, groupName: str, groupTag: int = -1, useBoundary: bool = False, useSuffixToRecognizeGeometryName: bool = True):
+        """Create named goup in exported mesh file for gmsh. That file is just for local user check as emerge sees mesh, emerge itself generate whole mesh inside it itself.
+
+        :param geometryObjName: Geometry name by which it will be searched using 'if geometryObj.name == geometryObjName or geometryObj.name.startswith(geometryObjName + ('_' if useSuffixToRecognizeGeometryName else '')):'
+        :param groupName: Group name in gmsh
+        :param groupTag: If specified it will be used instead of automatic group tag number generator
+        :param useBoundary: If set to True geometry object .boundary() is used
+        :param useSuffixToRecognizeGeometryName: If set to True then geometry is searchd using name and also name+'_...' so like MyGeoName and MyGeoName_someSuffix will be in same group
+        :return: None
+        """
         objectTag1DList = []
         objectTag2DList = []
         objectTag3DList = []
@@ -221,12 +236,12 @@ class EMergeHelperFunctions:
 
     def addPort(
             self,
-            name="",
-            portStart=[0.0, 0.0, 0.0],
-            width=0.0,
-            height=0.0,
-            R=50.0,
-            direction=em.ZAX,
+            name:str="",
+            portStart:list[float]=[0.0, 0.0, 0.0],
+            width:float=0.0,
+            height:float=0.0,
+            R:float=50.0,
+            direction:list[int]=em.ZAX,
             excitationAmplitude:float=0.0,
             geometryObject:em._emerge.geometry.GeoObject=None,
             portNumber:int=-1,
@@ -242,6 +257,28 @@ class EMergeHelperFunctions:
             coaxPortOuterRadius: float = 0.0,
             coaxPortPermittivity: float = 1.0,
     ):
+        """
+        This method only add port information into internal helper list. This info is later used when methods as 'setPortAsLumpedPort', 'setPortAsCoaxPort', ...
+        So this only register port into list.
+        :param name:
+        :param portStart:
+        :param width:
+        :param height:
+        :param R:
+        :param direction:
+        :param excitationAmplitude:
+        :param geometryObject:
+        :param portNumber:
+        :param modalModeType:
+        :param modalMixedMaterials:
+        :param modalImpedanceDefinition:
+        :param rectangularWaveguideMode:
+        :param rectangularWaveguidePermittivity:
+        :param coaxPortInnerRadius:
+        :param coaxPortOuterRadius:
+        :param coaxPortPermittivity:
+        :return:
+        """
         self.portList[name] = {}
         self.portList[name]['portStart'] = portStart
         self.portList[name]['width'] = width
@@ -365,11 +402,16 @@ class EMergeHelperFunctions:
                 return portObj['portNumber']
 
     def setPortAsLumpedPort(self, name, searchObjectName="") -> list[emergeMicrowaveBC.LumpedPort]:
+        """Set geometry object as lumped port. It performs method simulationObj.mw.bc.LumpedPort(face=..., ...)
+        :param {str} name: Geometry object name
+        :param {str} searchObjectName: If specified it is used to search for geometry object using this string instead of parameter name
+        :return: {list[LumpedPort]} List of all applied lumped ports objects
+        """
         portObj = self.getPort(name)
         resultBoundaryConditionList = []
 
         #
-        # Port object can be splitted since there was fragmentation operation in EMerge
+        # Port object can be split since there was fragmentation operation in EMerge
         #
         portGeometryObjectList = self.getAllObjectByName(name if searchObjectName == "" else searchObjectName)
         for geometryObj in portGeometryObjectList:
@@ -398,8 +440,16 @@ class EMergeHelperFunctions:
 
         return resultBoundaryConditionList
 
-    def setPortAsModalPort(self, name, searchObjectName="") -> list[emergeMicrowaveBC.ModalPort]:
-        """Experimental implementation not tested on real world example!!!"""
+    def setPortAsModalPort(self, name:str, searchObjectName:str="") -> list[emergeMicrowaveBC.ModalPort]:
+        """Set geometry object as modal port. It sets modal port boundary condition on imported .stl file
+
+        TESTED on model of combline filter, it's working right.
+        It performs method simulationObj.mw.bc.ModalPort(face=..., ...)
+
+        :param {str} name: Object name which should be searched in internal port list.
+        :param {str} searchObjectName: If specified this name is used instead of parameter name, it's doing the same but in code it's better readable when other object with different name is used instead of already saved obejct.
+        :return: {list[emergeMicrowaveBC.ModalPort]} List of all modal ports objects where modal port was applied.
+        """
 
         resultBoundaryConditionList = []
 
@@ -421,7 +471,15 @@ class EMergeHelperFunctions:
         return resultBoundaryConditionList
 
     def setPortAsRectangularWaveguidePort(self, name, searchObjectName="") -> list[emergeMicrowaveBC.RectangularWaveguide]:
-        """Experimental implementation not tested on real world example!!!"""
+        """Set 2D geometry as rectangular waveguide port.
+
+        TESTED on model waveguide with dielectric rod, rectangular waveguide is working right. Don't forget to place this condition on model boundary. If placed inside
+        model delete some volume behind it, otherwise there is error message in case there is no empty space behind it.
+
+        :param {str} name: Object name which should be searched in internal port list.
+        :param {str} searchObjectName: If specified this name is used instead of parameter name, it's doing the same but in code it's better readable when other object with different name is used instead of already saved obejct.
+        :return: {list[emergeMicrowaveBC.RectangularWaveguide]} List of all rectangular waveguide port objects where modal port was applied.
+        """
 
         resultBoundaryConditionList = []
 
@@ -441,7 +499,15 @@ class EMergeHelperFunctions:
         return resultBoundaryConditionList
 
     def setPortAsCoaxPort(self, name, searchObjectName="") -> list[emergeMicrowaveBC.CoaxPort]:
-        """Experimental implementation not tested on real world example!!!"""
+        """
+        Set 2D geometry as coax port. It represents input for coaxial cable.
+
+        TESTED on model disconne antenna, coaxial port is working right.
+
+        :param {str} name: Object name which should be searched in internal port list.
+        :param {str} searchObjectName: If specified this name is used instead of parameter name, it's doing the same but in code it's better readable when other object with different name is used instead of already saved obejct.
+        :return: {list[emergeMicrowaveBC.CoaxPort]} List of all coax port objects where modal port was applied.
+        """
 
         resultBoundaryConditionList = []
 
@@ -453,7 +519,9 @@ class EMergeHelperFunctions:
                 face = geometryObj,
                 port_number=portObj['portNumber'],
                 power = portObj['excitationAmplitude'],
-                rad_in_out = (portObj["coaxPortInnerRadius"], portObj["coaxPortInnerRadius"]),
+                rad_in_out = (portObj["coaxPortInnerRadius"], portObj["coaxPortOuterRadius"]),
+                # cs = CoordinateSystem(xax=(1,0,0),yax=(0,1,0),zax=(0,0,1)),   #coordinate system must be specified, use same as global one
+                cs = CoordinateSystem(xax=em.XAX,yax=em.YAX,zax=em.ZAX),
                 er = portObj["coaxPortPermittivity"]
             )
             resultBoundaryConditionList.append(resultObj)
